@@ -96,13 +96,18 @@ def _load_endpoints() -> dict[str, list[tuple[str, str]]]:
         from SpotiFLAC.providers.qobuz import _STREAM_APIS, _API_BASE, _POST_APIS
         qobuz_eps: list[tuple[str, str]] = []
         _QOBUZ_PROBE_ID = "3135556"
-        for url in _STREAM_APIS:
+        
+        # 1. Uniamo gli endpoint GET e POST per non mancarne nessuno
+        all_qobuz_urls = set(_STREAM_APIS).union(_POST_APIS)
+        
+        for url in all_qobuz_urls:
             if url in _POST_APIS:
                 qobuz_eps.append(("POST", url))
             elif url.endswith("="):
                 qobuz_eps.append(("GET", f"{url}{_QOBUZ_PROBE_ID}&quality=6"))
             else:
                 qobuz_eps.append(("GET", f"{url}{_QOBUZ_PROBE_ID}?quality=6"))
+                
         qobuz_eps.append(("GET", f"{_API_BASE}/track/search?query=test&limit=1&app_id=0"))
         qobuz_eps.append(("GET", "https://api.zarz.moe/v1/health"))
 
