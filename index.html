@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpotiFLAC</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Theme variables ──────────────────────────────────────────────────── */
+    :root {
+      --yellow:      #f5c000;
+      --yellow-dim:  #f5c00018;
+      --yellow-glow: #f5c00040;
+      --red:         #ef4444;
+      --blue:        #3b82f6;
+      --green:       #16a34a;
+      --t: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    [data-theme="light"] {
+      --bg:          #f0f0f2;
+      --surface:     #ffffff;
+      --surface2:    #f9fafb;
+      --surface3:    #f3f4f6;
+      --border:      #e5e7eb;
+      --border2:     #d1d5db;
+      --text:        #111827;
+      --text2:       #374151;
+      --muted:       #6b7280;
+      --muted2:      #9ca3af;
+      --sidebar-bg:  #ffffff;
+      --titlebar-bg: #ffffff;
+      --log-bg:      #f9fafb;
+      --shadow:      0 4px 24px rgba(0,0,0,.08);
+      --shadow-sm:   0 1px 6px rgba(0,0,0,.06);
+      --accent:         var(--yellow);
+      --accent-dim:     var(--yellow-dim);
+      --accent-glow:    var(--yellow-glow);
+    }
+
+    [data-theme="dark"] {
+      --bg:          #0d0d0f;
+      --surface:     #18181b;
+      --surface2:    #1f1f23;
+      --surface3:    #27272a;
+      --border:      #27272a;
+      --border2:     #3f3f46;
+      --text:        #f4f4f5;
+      --text2:       #d4d4d8;
+      --muted:       #71717a;
+      --muted2:      #52525b;
+      --sidebar-bg:  #18181b;
+      --titlebar-bg: #18181b;
+      --log-bg:      #0d0d0f;
+      --shadow:      0 4px 24px rgba(0,0,0,.4);
+      --shadow-sm:   0 1px 6px rgba(0,0,0,.3);
+      --accent:         var(--yellow);
+      --accent-dim:     var(--yellow-dim);
+      --accent-glow:    var(--yellow-glow);
+    }
+
+    /* ── Base ─────────────────────────────────────────────────────────────── */
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+      -webkit-app-region: no-drag;
+      transition: background var(--t), color var(--t);
+      font-size: 13px;
+    }
+    #logArea, #meta-info, #urlInput, .track-item, .folder-path,
+    input[type="text"], input[type="password"], input[type="number"] { user-select: text; }
+
+    /* ── Titlebar ─────────────────────────────────────────────────────────── */
+    #titlebar {
+      height: 40px;
+      background: var(--titlebar-bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 14px 0 16px;
+      gap: 8px;
+      -webkit-app-region: drag;
+      flex-shrink: 0;
+      z-index: 100;
+      transition: background var(--t), border-color var(--t);
+    }
+    .traffic-lights {
+      display: flex; align-items: center; gap: 6px;
+      -webkit-app-region: no-drag;
+    }
+    .dot {
+      width: 12px; height: 12px; border-radius: 50%;
+      cursor: pointer; transition: filter 0.15s, transform 0.15s; flex-shrink: 0;
+    }
+    .dot:hover { filter: brightness(1.15); transform: scale(1.08); }
+    .dot:active { transform: scale(0.9); }
+    .dot.close { background: #ff5f57; }
+    .dot.min   { background: #febc2e; }
+    .dot.max   { background: #28c840; }
+    #titlebar .app-title {
+      flex: 1; text-align: center; font-size: 12px; font-weight: 600;
+      color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .titlebar-right {
+      display: flex; align-items: center; gap: 4px;
+      -webkit-app-region: no-drag;
+    }
+    .tb-btn {
+      width: 28px; height: 28px; background: none;
+      border: 1px solid transparent; border-radius: 7px; color: var(--muted);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; transition: background var(--t), color var(--t), border-color var(--t);
+    }
+    .tb-btn:hover { background: var(--surface2); border-color: var(--border2); color: var(--text); }
+
+    /* ── App body ─────────────────────────────────────────────────────────── */
+    #app-body { flex: 1; display: flex; overflow: hidden; }
+
+    /* ── Sidebar ──────────────────────────────────────────────────────────── */
+    #sidebar {
+      width: 54px; background: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; align-items: center;
+      padding: 12px 0; gap: 4px; flex-shrink: 0;
+      transition: background var(--t), border-color var(--t);
+    }
+    .nav-spacer { flex: 1; }
+    .nav-btn {
+      width: 38px; height: 38px; border: none; border-radius: 10px;
+      background: none; color: var(--muted2); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background var(--t), color var(--t); font-size: 16px; position: relative;
+    }
+    .nav-btn:hover { background: var(--surface2); color: var(--muted); }
+    .nav-btn.active { background: var(--yellow); color: #000; }
+    .nav-btn svg { pointer-events: none; }
+
+    /* ── Content area ─────────────────────────────────────────────────────── */
+    #content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+    /* ── Views ────────────────────────────────────────────────────────────── */
+    .view {
+      display: none; flex-direction: column; flex: 1;
+      overflow: hidden; padding: 14px 16px 12px; gap: 10px;
+    }
+    .view.active { display: flex; }
+
+    /* ─────────────────────────────────────────────────────────────────────── */
+    /* HOME VIEW — horizontal two-column layout                                */
+    /* ─────────────────────────────────────────────────────────────────────── */
+    #view-home {
+      flex-direction: row !important;
+      gap: 10px;
+      padding: 14px 14px 12px 14px;
+    }
+
+    /* Left column: search + meta + tracklist + recent fetches */
+    #home-left {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    /* Right column: progress + log */
+    #home-right {
+      width: 258px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      overflow: hidden;
+    }
+
+    /* ── App hero (header inside home) ─────────────────────────────────────── */
+    #home-hero {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 2px 2px;
+      flex-shrink: 0;
+    }
+    #hero-logo {
+      width: 36px; height: 36px; flex-shrink: 0;
+      background: var(--yellow);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 2px 10px var(--yellow-glow);
+    }
+
+    #hero-title {
+      font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2;
+    }
+    #hero-sub {
+      font-size: 10.5px; color: var(--muted); margin-top: 1px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ── Search row ───────────────────────────────────────────────────────── */
+    #search-row { display: flex; gap: 7px; flex-shrink: 0; }
+    .input-wrapper { flex: 1; position: relative; }
+    .input-icon {
+      position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+      color: var(--muted2); pointer-events: none; display: flex; align-items: center;
+    }
+    #urlInput {
+      width: 100%; padding: 9px 12px 9px 34px;
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: 9px; color: var(--text); font-family: 'DM Sans', sans-serif;
+      font-size: 13px; outline: none; transition: border-color var(--t), box-shadow var(--t);
+    }
+    #urlInput:focus { border-color: var(--yellow); box-shadow: 0 0 0 3px var(--yellow-dim); }
+    #urlInput::placeholder { color: var(--muted2); font-size: 12px; }
+    #urlInput:disabled { opacity: 0.5; }
+    .icon-btn {
+      width: 36px; height: 36px; background: var(--surface); color: var(--text2);
+      border: 1.5px solid var(--border); border-radius: 9px; cursor: pointer;
+      transition: background var(--t), border-color var(--t); font-size: 15px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .icon-btn:hover { background: var(--surface2); border-color: var(--border2); }
+    .icon-btn:active { transform: scale(0.94); }
+    #actionBtn {
+      padding: 0 16px; height: 36px; background: var(--yellow); color: #000;
+      border: none; border-radius: 9px; font-family: 'DM Sans', sans-serif;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s; white-space: nowrap;
+      display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+    }
+    #actionBtn:hover { opacity: 0.88; }
+    #actionBtn:active { transform: scale(0.96); }
+    #actionBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Meta card ────────────────────────────────────────────────────────── */
+    #meta-card {
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: 11px; padding: 9px 13px;
+      display: flex; gap: 12px; align-items: center;
+      min-height: 62px; flex-shrink: 0;
+      transition: opacity 0.3s, border-color var(--t), background var(--t);
+      box-shadow: var(--shadow-sm); overflow: hidden; position: relative;
+    }
+    #meta-card::before {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(120deg, var(--yellow-dim) 0%, transparent 55%);
+      opacity: 0; transition: opacity 0.4s; pointer-events: none;
+    }
+    #meta-card:not(.empty)::before { opacity: 1; }
+    #meta-card.empty { opacity: 0.45; }
+    #cover {
+      width: 44px; height: 44px; border-radius: 7px; background: var(--surface2);
+      flex-shrink: 0; border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center; font-size: 20px;
+      background-size: cover; background-position: center;
+    }
+    #meta-info { flex: 1; min-width: 0; }
+    #meta-title {
+      font-size: 13.5px; font-weight: 600; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px;
+    }
+    #meta-artist { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #meta-badge {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 3px 8px;
+      border-radius: 6px; background: var(--yellow-dim); color: #7a5f00;
+      border: 1px solid var(--yellow); white-space: nowrap; flex-shrink: 0;
+      display: none; font-weight: 600; letter-spacing: 0.04em;
+    }
+    [data-theme="dark"] #meta-badge { color: var(--yellow); }
+
+    /* ── Tracklist panel ──────────────────────────────────────────────────── */
+    #tracklist-panel {
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: 11px; overflow: hidden; flex-shrink: 0;
+      display: none; animation: slideDown 0.18s ease; box-shadow: var(--shadow-sm);
+    }
+    #tracklist-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 13px; background: var(--surface2); border-bottom: 1px solid var(--border);
+    }
+    #tracklist-header label {
+      display: flex; align-items: center; gap: 8px;
+      font-weight: 600; font-size: 12px; cursor: pointer; color: var(--text2);
+    }
+    #track-count-badge {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      background: var(--yellow-dim); color: #7a5f00;
+      border: 1px solid var(--yellow); padding: 1px 8px; border-radius: 99px; display: none;
+    }
+    [data-theme="dark"] #track-count-badge { color: var(--yellow); }
+    #track-items {
+      max-height: 120px; overflow-y: auto; padding: 5px 7px;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    #track-items::-webkit-scrollbar { width: 3px; }
+    #track-items::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+    .track-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 4px 8px; border-radius: 7px; cursor: pointer;
+      transition: background var(--t);
+    }
+    .track-item:hover { background: var(--surface2); }
+    .track-num {
+      font-family: 'JetBrains Mono', monospace; font-size: 10px;
+      color: var(--muted2); width: 18px; text-align: right; flex-shrink: 0;
+    }
+    .track-title { font-size: 12px; font-weight: 500; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .track-artist { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+    input[type="checkbox"] { accent-color: var(--yellow); width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
+
+    /* ── Recent Fetches ───────────────────────────────────────────────────── */
+    #recent-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow: hidden;
+      min-height: 0;
+    }
+    #recent-section.hidden { display: none; }
+    .recent-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--muted); flex-shrink: 0;
+      padding: 0 2px;
+    }
+    #recent-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 7px;
+      overflow-y: auto;
+      padding-bottom: 4px;
+    }
+    #recent-grid::-webkit-scrollbar { width: 3px; }
+    #recent-grid::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+    .recent-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color var(--t), transform 0.15s, box-shadow 0.15s;
+      animation: fadein 0.2s ease;
+    }
+    .recent-card:hover {
+      border-color: var(--yellow);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0,0,0,.1);
+    }
+    .recent-card:active { transform: scale(0.97); }
+    .recent-cover {
+      width: 100%; aspect-ratio: 1;
+      background: var(--surface3); background-size: cover; background-position: center;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; color: var(--muted2);
+    }
+    .recent-info { padding: 7px 8px 8px; }
+    .recent-title {
+      font-size: 11.5px; font-weight: 600; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px;
+    }
+    .recent-sub {
+      font-size: 10px; color: var(--muted); white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px;
+    }
+    .recent-type-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 9.5px; font-family: 'JetBrains Mono', monospace;
+      padding: 1px 6px; border-radius: 4px; font-weight: 500;
+    }
+    .recent-type-badge.album    { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .recent-type-badge.playlist { background: #ede9fe; color: #6d28d9; border: 1px solid #c4b5fd; }
+    .recent-type-badge.track    { background: #dbeafe; color: #1d4ed8; border: 1px solid #93c5fd; }
+    .recent-type-badge.artist   { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
+    [data-theme="dark"] .recent-type-badge.album    { background: #14532d30; color: #4ade80; border-color: #15803d; }
+    [data-theme="dark"] .recent-type-badge.playlist { background: #4c1d9530; color: #c084fc; border-color: #6d28d9; }
+    [data-theme="dark"] .recent-type-badge.track    { background: #1e3a5f30; color: #60a5fa; border-color: #1d4ed8; }
+    [data-theme="dark"] .recent-type-badge.artist   { background: #78350f30; color: #fbbf24; border-color: #d97706; }
+
+    /* ── Right column: progress ───────────────────────────────────────────── */
+    #progress-wrap { flex-shrink: 0; }
+    #progress-label {
+      font-size: 11px; color: var(--muted); margin-bottom: 5px;
+      display: flex; justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace; letter-spacing: 0.02em;
+    }
+    #progress-bar-bg { height: 3px; background: var(--surface3); border-radius: 99px; overflow: hidden; }
+    #progress-bar {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, var(--yellow), #ffe066);
+      border-radius: 99px; transition: width 0.4s ease; position: relative;
+      box-shadow: 0 0 6px var(--yellow-glow);
+    }
+    #progress-bar::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+      transform: translateX(-100%); animation: shimmer 1.8s infinite;
+    }
+    @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+
+    /* ── Log area ─────────────────────────────────────────────────────────── */
+    #log-panel {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 11px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      transition: background var(--t), border-color var(--t);
+    }
+    #log-panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 7px 12px 6px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #log-panel-header span {
+      font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--muted);
+    }
+    #log-clear-btn {
+      background: none; border: none; color: var(--muted2); cursor: pointer;
+      font-size: 11px; padding: 1px 4px; border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      transition: color var(--t), background var(--t);
+    }
+    #log-clear-btn:hover { color: var(--text2); background: var(--surface3); }
+    #logArea {
+      flex: 1; min-height: 0;
+      background: var(--log-bg); padding: 9px 11px;
+      overflow-y: auto; font-family: 'JetBrains Mono', monospace;
+      font-size: 11px; line-height: 1.75;
+      transition: background var(--t);
+    }
+    #logArea::-webkit-scrollbar { width: 3px; }
+    #logArea::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+    .log-line { display: flex; gap: 10px; animation: fadein 0.15s ease; }
+    @keyframes fadein { from { opacity: 0; transform: translateX(-3px); } to { opacity: 1; transform: translateX(0); } }
+    .log-time  { color: var(--muted2); flex-shrink: 0; opacity: 0.6; }
+    .log-msg        { color: var(--text2); word-break: break-word; }
+    .log-msg.ok     { color: #16a34a; }
+    .log-msg.error  { color: var(--red); }
+    .log-msg.info   { color: var(--blue); }
+    .log-msg.warn   { color: #d97706; }
+
+    /* ── Settings view ────────────────────────────────────────────────────── */
+    #view-settings { padding: 0; }
+    .settings-header {
+      padding: 16px 22px 0;
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    .settings-header h1 { font-size: 20px; font-weight: 700; }
+    .tab-bar {
+      display: flex; padding: 0 22px; border-bottom: 1px solid var(--border);
+      gap: 0; flex-shrink: 0; margin-top: 14px; overflow-x: auto;
+    }
+    .tab-bar::-webkit-scrollbar { display: none; }
+    .tab {
+      padding: 9px 13px; background: none; border: none; color: var(--muted);
+      font-family: 'DM Sans', sans-serif; font-size: 12.5px; font-weight: 500;
+      cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap;
+      transition: color var(--t), border-color var(--t); letter-spacing: 0.02em;
+    }
+    .tab:hover { color: var(--text2); }
+    .tab.active { color: var(--text); font-weight: 700; border-bottom-color: var(--yellow); }
+    .settings-body { flex: 1; overflow-y: auto; padding: 16px 22px 18px; }
+    .settings-body::-webkit-scrollbar { width: 3px; }
+    .settings-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .panel-row {
+      display: flex; justify-content: space-between;
+      align-items: center; min-height: 30px; margin-bottom: 9px; gap: 12px;
+    }
+    .panel-row:last-child { margin-bottom: 0; }
+    .panel-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .row-label { color: var(--text2); flex-shrink: 0; font-size: 12.5px; font-weight: 500; }
+    .row-label small { display: block; color: var(--muted); font-size: 10.5px; margin-top: 1px; font-family: 'JetBrains Mono', monospace; }
+    .sep { height: 1px; background: var(--border); margin: 10px 0; }
+    select, input[type="text"], input[type="password"], input[type="number"] {
+      background: var(--surface2); color: var(--text); border: 1.5px solid var(--border);
+      border-radius: 8px; padding: 6px 10px; outline: none;
+      font-family: 'DM Sans', sans-serif; font-size: 12.5px; cursor: pointer;
+      transition: border-color var(--t), box-shadow var(--t);
+    }
+    select:focus, input[type="text"]:focus, input[type="password"]:focus, input[type="number"]:focus {
+      border-color: var(--yellow); box-shadow: 0 0 0 2px var(--yellow-dim);
+    }
+    input[type="number"] { width: 70px; text-align: center; }
+    input[type="text"].full, input[type="password"].full { width: 100%; }
+    .folder-path {
+      color: var(--muted); font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px; background: var(--surface2); padding: 4px 9px;
+      border-radius: 6px; max-width: 240px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--border);
+    }
+    .sort-list { display: flex; flex-direction: column; gap: 4px; }
+    .sort-item {
+      display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+      background: var(--surface2); border: 1.5px solid var(--border);
+      border-radius: 8px; cursor: grab;
+      transition: background var(--t), border-color var(--t);
+      -webkit-app-region: no-drag;
+    }
+    .sort-item:hover { border-color: var(--border2); }
+    .sort-item.dragging { opacity: 0.3; cursor: grabbing; }
+    .sort-item.drag-over { border-color: var(--yellow); background: var(--yellow-dim); }
+    .drag-handle { color: var(--muted2); font-size: 12px; cursor: grab; flex-shrink: 0; letter-spacing: -1px; }
+    .sort-item span.svc-name { flex: 1; font-size: 12.5px; color: var(--text2); }
+    .sort-item .svc-badge {
+      font-size: 9.5px; font-family: 'JetBrains Mono', monospace;
+      padding: 2px 6px; border-radius: 5px;
+      background: var(--surface3); color: var(--muted); border: 1px solid var(--border); flex-shrink: 0;
+    }
+    .sort-section-label {
+      font-size: 11px; color: var(--muted); margin: 8px 0 5px;
+      text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
+    }
+    .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; inset: 0; background: var(--surface3);
+      border-radius: 99px; border: 1.5px solid var(--border2); cursor: pointer;
+      transition: background var(--t), border-color var(--t);
+    }
+    .toggle-slider::before {
+      content: ''; position: absolute; width: 13px; height: 13px; left: 2px; top: 50%;
+      transform: translateY(-50%); background: var(--muted); border-radius: 50%;
+      transition: transform 0.2s cubic-bezier(0.4,0,0.2,1), background var(--t);
+    }
+    .toggle input:checked + .toggle-slider { background: var(--yellow-dim); border-color: var(--yellow); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(16px) translateY(-50%); background: var(--yellow); }
+    .indent-row { padding-left: 18px; border-left: 2px solid var(--border2); margin-left: 4px; }
+    #cmd-row { display: none; }
+    #cmd-row-input { display: none; }
+    @keyframes slideDown { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+    .settings-section {
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: 11px; padding: 13px 15px; margin-bottom: 10px; box-shadow: var(--shadow-sm);
+    }
+    .settings-section:last-child { margin-bottom: 0; }
+    .section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--muted); margin-bottom: 10px;
+    }
+    :focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+
+    /* ── Health Check tab ─────────────────────────────────────────────────── */
+    #hc-run-btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 8px 18px; background: var(--yellow); color: #000;
+      border: none; border-radius: 9px; font-family: 'DM Sans', sans-serif;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    #hc-run-btn:hover { opacity: 0.88; }
+    #hc-run-btn:active { transform: scale(0.96); }
+    #hc-run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #hc-status-text {
+      font-size: 11.5px; color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    #hc-results { margin-top: 2px; }
+
+    .hc-provider-group { margin-bottom: 8px; }
+    .hc-provider-name {
+      font-size: 12px; font-weight: 700; color: var(--text2);
+      margin-bottom: 4px; padding: 0 2px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .hc-provider-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+      background: var(--muted2);
+    }
+    .hc-provider-dot.ok  { background: #16a34a; box-shadow: 0 0 5px #16a34a60; }
+    .hc-provider-dot.err { background: var(--red); box-shadow: 0 0 5px #ef444460; }
+
+    .hc-endpoint-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 10px; margin-bottom: 3px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 7px; font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+      transition: border-color var(--t);
+      animation: fadein 0.15s ease;
+    }
+    .hc-endpoint-row.ok-row  { border-left: 3px solid #16a34a; }
+    .hc-endpoint-row.err-row { border-left: 3px solid var(--red); }
+
+    .hc-indicator {
+      width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 9px;
+    }
+    .hc-indicator.ok  { background: #dcfce7; color: #16a34a; }
+    .hc-indicator.err { background: #fee2e2; color: var(--red); }
+    [data-theme="dark"] .hc-indicator.ok  { background: #14532d30; color: #4ade80; }
+    [data-theme="dark"] .hc-indicator.err { background: #7f1d1d30; color: #f87171; }
+
+    .hc-method {
+      padding: 1px 5px; border-radius: 4px; font-size: 9px; font-weight: 600;
+      background: var(--surface3); color: var(--muted); border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .hc-url { flex: 1; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hc-detail { color: var(--text2); flex-shrink: 0; font-size: 10px; max-width: 90px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hc-latency { color: var(--muted2); flex-shrink: 0; width: 58px; text-align: right; }
+    .hc-latency.ok-lat { color: #16a34a; }
+    .hc-latency.slow { color: #d97706; }
+
+    #hc-summary-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 12px; border-radius: 9px;
+      background: var(--surface2); border: 1.5px solid var(--border);
+      margin-bottom: 12px; font-size: 12px; flex-wrap: wrap;
+    }
+    .hc-summary-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px; border-radius: 99px; font-size: 11px;
+      font-family: 'JetBrains Mono', monospace; font-weight: 600;
+    }
+    .hc-summary-chip.ok  { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .hc-summary-chip.err { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+    [data-theme="dark"] .hc-summary-chip.ok  { background: #14532d30; color: #4ade80; border-color: #166534; }
+    [data-theme="dark"] .hc-summary-chip.err { background: #7f1d1d30; color: #f87171; border-color: #991b1b; }
+
+    #hc-spinner {
+      display: none; width: 14px; height: 14px;
+      border: 2px solid var(--border2); border-top-color: var(--yellow);
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<!-- ── Titlebar ───────────────────────────────────────────────────────────── -->
+<div id="titlebar">
+  <div class="traffic-lights">
+    <div class="dot close" onclick="pyWin('Quit')" title="Close"></div>
+    <div class="dot min"   onclick="pyWin('WindowMinimise')" title="Minimize"></div>
+    <div class="dot max"   onclick="pyWin('WindowToggleMaximise')" title="Fullscreen"></div>
+  </div>
+  <span class="app-title">SpotiFLAC</span>
+  <div class="titlebar-right">
+    <button class="tb-btn" id="themeBtn" onclick="cycleTheme()" title="Toggle theme"></button>
+  </div>
+</div>
+
+<!-- ── App body ───────────────────────────────────────────────────────────── -->
+<div id="app-body">
+
+  <!-- Sidebar -->
+  <nav id="sidebar">
+    <button class="nav-btn active" id="nav-home" onclick="switchView('home')" title="Home">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9.5L12 3l9 6.5V21H15v-5h-6v5H3z"/>
+      </svg>
+    </button>
+    <button class="nav-btn" id="nav-settings" onclick="switchView('settings')" title="Settings">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+    <div class="nav-spacer"></div>
+    <button class="nav-btn" onclick="pyWin('choose_folder')" title="Choose download folder">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+      </svg>
+    </button>
+  </nav>
+
+  <!-- Content -->
+  <div id="content">
+
+    <!-- ── HOME VIEW ─────────────────────────────────────────────────────── -->
+    <div class="view active" id="view-home">
+
+      <!-- LEFT COLUMN -->
+      <div id="home-left">
+
+        <!-- Hero header -->
+        <div id="home-hero">
+          <div id="hero-logo">🎵</div>
+          <div id="hero-text">
+            <div id="hero-title">SpotiFLAC <span style="font-family:'JetBrains Mono';font-size:10px;font-weight:400;color:var(--muted);background:var(--yellow-dim);border:1px solid var(--yellow);padding:1px 6px;border-radius:5px;vertical-align:middle;">v0.5.7-b</span></div>
+            <div id="hero-sub">Tidal · Qobuz · Amazon · Deezer · Apple</div>
+          </div>
+        </div>
+
+        <!-- Search row -->
+        <div id="search-row">
+          <div class="input-wrapper">
+            <span class="input-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>
+              </svg>
+            </span>
+            <input id="urlInput" type="text"
+                   placeholder="Spotify · Tidal · Apple Music · Deezer · YouTube · Pandora…"
+                   onkeydown="if(event.key==='Enter') handleAction()">
+          </div>
+          <button id="actionBtn" onclick="handleAction()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Search Tracks
+          </button>
+        </div>
+
+        <!-- Tracklist panel -->
+        <div id="tracklist-panel">
+          <div id="tracklist-header">
+            <label>
+              <input type="checkbox" id="check-all" checked onchange="toggleAllTracks(this)">
+              Select / Deselect All
+            </label>
+            <span id="track-count-badge"></span>
+          </div>
+          <div id="track-items"></div>
+        </div>
+
+        <!-- Meta card -->
+        <div id="meta-card" class="empty">
+          <div id="cover">🎵</div>
+          <div id="meta-info">
+            <div id="meta-title">—</div>
+            <div id="meta-artist">—</div>
+          </div>
+          <div id="meta-badge">FLAC</div>
+        </div>
+
+        <!-- Recent Fetches -->
+        <div id="recent-section">
+          <div class="recent-label">Recent Fetches</div>
+          <div id="recent-grid"></div>
+        </div>
+
+      </div><!-- /home-left -->
+
+      <!-- RIGHT COLUMN -->
+      <div id="home-right">
+
+        <!-- Progress -->
+        <div id="progress-wrap">
+          <div id="progress-label">
+            <span id="progress-text">Waiting…</span>
+            <span id="progress-pct">0%</span>
+          </div>
+          <div id="progress-bar-bg"><div id="progress-bar"></div></div>
+        </div>
+
+        <!-- Log panel -->
+        <div id="log-panel">
+          <div id="log-panel-header">
+            <span>Log</span>
+            <button id="log-clear-btn" onclick="clearLog()" title="Clear log">clr</button>
+          </div>
+          <div id="logArea">
+            <div class="log-line">
+              <span class="log-time">--:--:--</span>
+              <span class="log-msg info">Ready. Paste a link and press Search Tracks.</span>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /home-right -->
+
+    </div><!-- /view-home -->
+
+    <!-- ── SETTINGS VIEW ──────────────────────────────────────────────────── -->
+    <div class="view" id="view-settings" style="gap:0;">
+
+      <div class="settings-header">
+        <h1>Settings</h1>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="folder-path" id="folder-path" title="Change with the folder button">…</span>
+          <button class="icon-btn" onclick="pyWin('choose_folder')" title="Change folder" style="width:32px;height:32px;font-size:14px;">📁</button>
+        </div>
+      </div>
+
+      <div class="tab-bar">
+        <button class="tab active" onclick="switchTab('download',this)">⬇ Sources</button>
+        <button class="tab"        onclick="switchTab('files',this)">📄 Files</button>
+        <button class="tab"        onclick="switchTab('features',this)">✨ Features</button>
+        <button class="tab"        onclick="switchTab('advanced',this)">⚙ Advanced</button>
+        <button class="tab"        onclick="switchTab('health',this)">🩺 Health</button>
+      </div>
+
+      <div class="settings-body">
+
+        <!-- TAB: SOURCES -->
+        <div class="tab-content active" id="tab-download">
+          <div class="settings-section">
+            <div class="section-title">Audio Sources — drag to set priority</div>
+            <div id="services-list" class="sort-list"></div>
+          </div>
+          <div class="settings-section">
+            <div class="section-title">Quality</div>
+            <div class="panel-row">
+              <span class="row-label">Audio Quality</span>
+              <select id="config-quality">
+                <option value="LOSSLESS">LOSSLESS — CD 16‑bit (Tidal/Deezer)</option>
+                <option value="HI_RES_LOSSLESS">HI‑RES LOSSLESS — 24‑bit (Tidal)</option>
+                <option value="DOLBY_ATMOS">DOLBY ATMOS (Tidal)</option>
+                <option value="HIGH">HIGH — MP3 320 kbps</option>
+                <option value="LOW">LOW — reduced quality</option>
+                <option value="27">27 — Hi‑Res Max (Qobuz)</option>
+                <option value="7">7 — Hi‑Res (Qobuz)</option>
+                <option value="6">6 — CD Lossless (Qobuz)</option>
+                <option value="alac">ALAC — Lossless (Apple Music)</option>
+                <option value="atmos">ATMOS — Spatial Audio (Apple)</option>
+                <option value="aac">AAC (Apple Music)</option>
+                <option value="mp3_192">MP3 192 kbps (Pandora)</option>
+                <option value="aac_64">AAC 64 kbps (Pandora)</option>
+                <option value="aac_32">AAC 32 kbps (Pandora)</option>
+              </select>
+            </div>
+            <div class="panel-row">
+              <label>
+                <input type="checkbox" id="config-fallback" checked>
+                <span>Automatic quality fallback</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: FILES -->
+        <div class="tab-content" id="tab-files">
+          <div class="settings-section">
+            <div class="section-title">Filename</div>
+            <div class="panel-row">
+              <span class="row-label">
+                Format
+                <small>{title} {artist} {album} {album_artist} {year} {track} {disc} {isrc}</small>
+              </span>
+            </div>
+            <input type="text" id="config-filename" class="full" value="{title} - {artist}" style="width:100%;margin-bottom:10px;">
+            <div class="sep"></div>
+            <div class="panel-row">
+              <label>
+                <input type="checkbox" id="config-track-numbers" onchange="onTrackNumChange()">
+                <span>Add track number to filename</span>
+              </label>
+            </div>
+            <div class="panel-row indent-row" id="album-track-row" style="display:none;">
+              <label>
+                <input type="checkbox" id="config-album-track-numbers">
+                <span>Use original album track number</span>
+              </label>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="section-title">Folders</div>
+            <div class="panel-row">
+              <label><input type="checkbox" id="config-artist-subfolders"><span>Create artist subfolders</span></label>
+            </div>
+            <div class="panel-row">
+              <label><input type="checkbox" id="config-album-subfolders"><span>Create album subfolders</span></label>
+            </div>
+            <div class="panel-row">
+              <label><input type="checkbox" id="config-first-artist"><span>Use first artist only (tags and filename)</span></label>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: FEATURES -->
+        <div class="tab-content" id="tab-features">
+          <div class="settings-section">
+            <div class="panel-row">
+              <label><input type="checkbox" id="config-featuring"><span>Include featuring tracks (artist URL only)</span></label>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="section-title">Lyrics</div>
+            <div class="panel-row">
+              <label>
+                <input type="checkbox" id="config-lyrics" checked onchange="onLyricsChange()">
+                <span>Embed synced lyrics (LRC)</span>
+              </label>
+            </div>
+            <div id="lyrics-providers-section">
+              <div class="sort-section-label">Providers — drag to set priority</div>
+              <div id="lyrics-list" class="sort-list"></div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="section-title">Metadata Enrichment</div>
+            <div class="panel-row">
+              <label>
+                <input type="checkbox" id="config-enrich" checked onchange="onEnrichChange()">
+                <span>Enrich metadata (genre, BPM, HD artwork…)</span>
+              </label>
+            </div>
+            <div id="enrich-providers-section">
+              <div class="sort-section-label">Providers — drag to set priority</div>
+              <div id="enrich-list" class="sort-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: ADVANCED -->
+        <div class="tab-content" id="tab-advanced">
+          <div class="settings-section">
+            <div class="section-title">Retries &amp; Loops</div>
+            <div class="panel-row">
+              <span class="row-label">Extra retries per track<small>On failure, retry cycling through providers</small></span>
+              <input type="number" id="config-retries" value="0" min="0" max="10">
+            </div>
+            <div class="panel-row">
+              <span class="row-label">Retry failed tracks<small>Loop every N minutes (0 = disabled)</small></span>
+              <input type="number" id="config-loop" value="0" min="0" max="999">
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="section-title">Post-download</div>
+            <div class="panel-row">
+              <span class="row-label">Action</span>
+              <select id="config-post-action" onchange="onPostActionChange()">
+                <option value="none">None</option>
+                <option value="open_folder">Open folder</option>
+                <option value="notify">System notification</option>
+                <option value="command">Shell command</option>
+              </select>
+            </div>
+            <div class="panel-row cmd-row" id="cmd-row">
+              <span class="row-label">Shell command<small>{folder} {succeeded} {failed}</small></span>
+            </div>
+            <div class="panel-row cmd-row" id="cmd-row-input" style="display:none;margin-top:-4px;">
+              <input type="text" id="config-post-cmd" class="full"
+                     placeholder="rsync -av {folder}/ user@nas:/music/" style="width:100%">
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="section-title">Auth</div>
+            <div class="panel-row">
+              <span class="row-label">
+                Qobuz token (optional)
+                <small>x-user-auth-token from DevTools → Network</small>
+              </span>
+              <input type="password" id="config-qobuz-token" placeholder="leave empty to skip" style="width:180px;">
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="section-title">Debug</div>
+            <div class="panel-row">
+              <span class="row-label">Log level</span>
+              <select id="config-loglevel">
+                <option value="INFO">Standard (INFO)</option>
+                <option value="DEBUG">Verbose (DEBUG)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+          <div class="settings-section">
+            <div class="section-title">Profiles</div>
+            <div class="panel-row">
+              <span class="row-label">Save Profile</span>
+              <input type="text" id="profile-name" placeholder="Name" style="width:100px;">
+              <button onclick="saveProfile()" style="padding:4px 8px;">Save</button>
+            </div>
+            <div class="panel-row">
+              <span class="row-label">Load Profile</span>
+              <select id="profile-select" style="flex:1;">
+                <option value="">Select a profile...</option>
+              </select>
+              <button onclick="loadProfile()" style="padding:4px 8px;">Load</button>
+            </div>
+          </div>
+
+        <!-- TAB: HEALTH CHECK ─────────────────────────────────────────────── -->
+        <div class="tab-content" id="tab-health">
+
+          <div class="settings-section">
+            <div class="section-title">Service Health Check</div>
+            <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;">
+              Tests reachability of each download provider's API endpoints.
+              Results reflect current server availability, not account access.
+            </p>
+
+            <!-- Services to check (multi-select chips) -->
+            <div style="margin-bottom:12px;">
+              <div class="sort-section-label" style="margin-bottom:6px;">Services to test</div>
+              <div id="hc-service-chips" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
+            </div>
+
+            <!-- Run button + spinner + status -->
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <button id="hc-run-btn" onclick="runHealthCheck()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                </svg>
+                Run Check
+              </button>
+              <div id="hc-spinner"></div>
+              <span id="hc-status-text">—</span>
+            </div>
+          </div>
+
+          <!-- Summary bar (hidden until results arrive) -->
+          <div id="hc-summary-bar" style="display:none;"></div>
+
+          <!-- Results -->
+          <div id="hc-results"></div>
+
+        </div><!-- /tab-health -->
+
+      </div><!-- /settings-body -->
+    </div><!-- /view-settings -->
+
+  </div><!-- /content -->
+</div><!-- /app-body -->
+
+<script>
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const pyWin = method => window.pywebview?.api?.[method]?.();
+const now = () => new Date().toLocaleTimeString('it-IT');
+
+// ── View switching ────────────────────────────────────────────────────────────
+function switchView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn[id^="nav-"]').forEach(b => b.classList.remove('active'));
+  $('view-' + name)?.classList.add('active');
+  $('nav-' + name)?.classList.add('active');
+}
+
+// ── Theme system ──────────────────────────────────────────────────────────────
+const THEMES = ['system', 'light', 'dark'];
+const THEME_ICONS = { system: '🖥', dark: '🌙', light: '☀️' };
+let currentThemeMode = localStorage.getItem('sf-theme') || 'system';
+
+function applyTheme(mode) {
+  const html = document.documentElement;
+  if (mode === 'system') {
+    html.setAttribute('data-theme', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  } else {
+    html.setAttribute('data-theme', mode);
+  }
+  $('themeBtn').textContent = THEME_ICONS[mode];
+  $('themeBtn').title = { system: 'Theme: System', dark: 'Theme: Dark', light: 'Theme: Light' }[mode];
+}
+function cycleTheme() {
+  currentThemeMode = THEMES[(THEMES.indexOf(currentThemeMode) + 1) % THEMES.length];
+  localStorage.setItem('sf-theme', currentThemeMode);
+  applyTheme(currentThemeMode);
+}
+applyTheme(currentThemeMode);
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (currentThemeMode === 'system') applyTheme('system');
+});
+
+// ── Tab switching (settings) ──────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  $('tab-' + name).classList.add('active');
+}
+
+// ── Conditional UI ─────────────────────────────────────────────────────────────
+function onTrackNumChange() {
+  $('album-track-row').style.display = $('config-track-numbers').checked ? 'flex' : 'none';
+}
+function onLyricsChange() {
+  const on = $('config-lyrics').checked;
+  $('lyrics-providers-section').style.opacity = on ? '1' : '0.4';
+  $('lyrics-providers-section').style.pointerEvents = on ? '' : 'none';
+}
+function onEnrichChange() {
+  const on = $('config-enrich').checked;
+  $('enrich-providers-section').style.opacity = on ? '1' : '0.4';
+  $('enrich-providers-section').style.pointerEvents = on ? '' : 'none';
+}
+function onPostActionChange() {
+  const show = $('config-post-action').value === 'command';
+  $('cmd-row').style.display = show ? 'flex' : 'none';
+  $('cmd-row-input').style.display = show ? 'flex' : 'none';
+}
+
+// ── Sortable list engine ───────────────────────────────────────────────────────
+function makeSortable(listEl) {
+  let dragging = null;
+  function onDragStart(e) { dragging = e.currentTarget; setTimeout(() => dragging?.classList.add('dragging'), 0); }
+  function onDragEnd() {
+    dragging?.classList.remove('dragging');
+    document.querySelectorAll('.sort-item').forEach(i => i.classList.remove('drag-over'));
+    dragging = null;
+  }
+  function onDragOver(e) {
+    e.preventDefault();
+    if (!dragging || dragging.parentElement !== listEl) return;
+    const items = [...listEl.querySelectorAll('.sort-item:not(.dragging)')];
+    const after = items.find(item => e.clientY < item.getBoundingClientRect().top + item.getBoundingClientRect().height / 2);
+    items.forEach(i => i.classList.remove('drag-over'));
+    if (after) { after.classList.add('drag-over'); listEl.insertBefore(dragging, after); }
+    else listEl.appendChild(dragging);
+  }
+  const applyDrag = () => {
+    listEl.querySelectorAll('.sort-item').forEach(item => {
+      item.setAttribute('draggable', 'true');
+      item.removeEventListener('dragstart', onDragStart);
+      item.removeEventListener('dragend', onDragEnd);
+      item.addEventListener('dragstart', onDragStart);
+      item.addEventListener('dragend', onDragEnd);
+    });
+  };
+  listEl.addEventListener('dragover', onDragOver);
+  listEl.addEventListener('dragleave', e => {
+    if (!listEl.contains(e.relatedTarget))
+      document.querySelectorAll('.sort-item').forEach(i => i.classList.remove('drag-over'));
+  });
+  applyDrag();
+  return applyDrag;
+}
+
+// ── Initial data ───────────────────────────────────────────────────────────────
+const ALL_SERVICES = [
+  { id: 'tidal',      label: 'Tidal',           badge: 'FLAC', checked: true  },
+  { id: 'qobuz',      label: 'Qobuz',           badge: 'FLAC', checked: true  },
+  { id: 'deezer',     label: 'Deezer',          badge: 'FLAC', checked: true  },
+  { id: 'amazon',     label: 'Amazon Music',    badge: 'FLAC', checked: false },
+  { id: 'spoti',      label: 'SpotiDownloader', badge: 'FLAC', checked: false },
+  { id: 'soundcloud', label: 'SoundCloud',      badge: 'MP3',  checked: false },
+  { id: 'youtube',    label: 'YouTube Music',   badge: 'M4A',  checked: false },
+  { id: 'apple',      label: 'Apple Music',     badge: 'M4A',  checked: false },
+  { id: 'pandora',    label: 'Pandora',         badge: 'MP3',  checked: false },
+];
+const ALL_LYRICS_PROVIDERS = [
+  { id: 'spotify',    label: 'Spotify',     checked: true },
+  { id: 'apple',      label: 'Apple Music', checked: true },
+  { id: 'musixmatch', label: 'Musixmatch',  checked: true },
+  { id: 'lrclib',     label: 'LRCLib',      checked: true },
+  { id: 'amazon',     label: 'Amazon',      checked: true },
+];
+const ALL_ENRICH_PROVIDERS = [
+  { id: 'deezer',     label: 'Deezer',      checked: true },
+  { id: 'apple',      label: 'Apple Music', checked: true },
+  { id: 'qobuz',      label: 'Qobuz',       checked: true },
+  { id: 'tidal',      label: 'Tidal',       checked: true },
+  { id: 'soundcloud', label: 'SoundCloud',  checked: true },
+];
+
+function buildSortItem(item) {
+  const div = document.createElement('div');
+  div.className = 'sort-item';
+  div.dataset.value = item.id;
+  div.innerHTML = `
+    <span class="drag-handle">⠿</span>
+    <input type="checkbox" ${item.checked ? 'checked' : ''} onclick="event.stopPropagation()">
+    <span class="svc-name">${item.label}</span>
+    ${item.badge ? `<span class="svc-badge">${item.badge}</span>` : ''}
+  `;
+  return div;
+}
+
+function populateSortList(listId, items) {
+  const list = $(listId);
+  list.innerHTML = '';
+  items.forEach(item => list.appendChild(buildSortItem(item)));
+  makeSortable(list);
+}
+
+function getOrderedChecked(listId) {
+  return [...$(listId).querySelectorAll('.sort-item')]
+    .filter(el => el.querySelector('input[type="checkbox"]').checked)
+    .map(el => el.dataset.value);
+}
+
+populateSortList('services-list', ALL_SERVICES);
+populateSortList('lyrics-list',   ALL_LYRICS_PROVIDERS.map(x => ({...x, badge: null})));
+populateSortList('enrich-list',   ALL_ENRICH_PROVIDERS.map(x => ({...x, badge: null})));
+
+// ── Health Check service chips ─────────────────────────────────────────────────
+const HC_SERVICES = [
+  { id: 'tidal',      label: 'Tidal',      on: true  },
+  { id: 'qobuz',      label: 'Qobuz',      on: true  },
+  { id: 'deezer',     label: 'Deezer',     on: true  },
+  { id: 'amazon',     label: 'Amazon',     on: false },
+  { id: 'apple',      label: 'Apple',      on: false },
+  { id: 'soundcloud', label: 'SoundCloud', on: false },
+  { id: 'youtube',    label: 'YouTube',    on: false },
+  { id: 'pandora',    label: 'Pandora',    on: false },
+  { id: 'spoti',      label: 'SpotiDL',   on: false },
+];
+
+function buildHcChips() {
+  const container = $('hc-service-chips');
+  container.innerHTML = '';
+  HC_SERVICES.forEach(svc => {
+    const chip = document.createElement('label');
+    chip.style.cssText = `
+      display:inline-flex; align-items:center; gap:5px;
+      padding:4px 10px; border-radius:99px; cursor:pointer;
+      border:1.5px solid var(--border); background:var(--surface2);
+      font-size:11.5px; font-weight:500; color:var(--text2);
+      transition: border-color 0.15s, background 0.15s;
+      user-select:none; -webkit-app-region:no-drag;
+    `;
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = svc.on;
+    cb.dataset.svc = svc.id;
+    cb.style.accentColor = 'var(--yellow)';
+    cb.addEventListener('change', () => {
+      chip.style.borderColor = cb.checked ? 'var(--yellow)' : 'var(--border)';
+      chip.style.background  = cb.checked ? 'var(--yellow-dim)' : 'var(--surface2)';
+    });
+    // init style
+    if (svc.on) { chip.style.borderColor = 'var(--yellow)'; chip.style.background = 'var(--yellow-dim)'; }
+    chip.appendChild(cb);
+    chip.appendChild(document.createTextNode(svc.label));
+    container.appendChild(chip);
+  });
+}
+buildHcChips();
+
+function getHcSelectedServices() {
+  return [...$('hc-service-chips').querySelectorAll('input[type="checkbox"]:checked')]
+    .map(cb => cb.dataset.svc);
+}
+
+// ── Health Check run ──────────────────────────────────────────────────────────
+async function runHealthCheck() {
+  const services = getHcSelectedServices();
+  if (!services.length) {
+    $('hc-status-text').textContent = 'Select at least one service.';
+    return;
+  }
+  const btn = $('hc-run-btn');
+  btn.disabled = true;
+  $('hc-spinner').style.display = 'block';
+  $('hc-status-text').textContent = `Checking ${services.length} service(s)…`;
+  $('hc-results').innerHTML = '';
+  $('hc-summary-bar').style.display = 'none';
+
+  if (window.pywebview?.api) {
+    await window.pywebview.api.run_health_check(services);
+  } else {
+    // Demo fallback
+    setTimeout(() => {
+      const demo = services.flatMap(p => [
+        { provider: p, method: 'GET', url: `https://api.example.com/${p}/health`, ok: Math.random() > 0.3, latency: Math.floor(80 + Math.random() * 400), detail: Math.random() > 0.3 ? 'ok' : 'timeout' },
+        { provider: p, method: 'GET', url: `https://api.zarz.moe/v1/health`, ok: true, latency: Math.floor(60 + Math.random() * 150), detail: 'Zarz Link OK' },
+      ]);
+      updateHealthResults(demo);
+    }, 900);
+  }
+}
+
+// Called from Python: window.evaluate_js('updateHealthResults(...)')
+function updateHealthResults(results) {
+  const data = typeof results === 'string' ? JSON.parse(results) : results;
+  const btn = $('hc-run-btn');
+  btn.disabled = false;
+  $('hc-spinner').style.display = 'none';
+
+  const okCount    = data.filter(r => r.ok).length;
+  const provMap    = {};
+  data.forEach(r => {
+    if (!provMap[r.provider]) provMap[r.provider] = [];
+    provMap[r.provider].push(r);
+  });
+
+  const provOk    = Object.entries(provMap).filter(([, rows]) => rows.some(r => r.ok)).length;
+  const provTotal = Object.keys(provMap).length;
+
+  $('hc-status-text').textContent = `${okCount}/${data.length} endpoints OK · ${provOk}/${provTotal} providers`;
+
+  // Summary bar
+  const bar = $('hc-summary-bar');
+  bar.style.display = 'flex';
+  bar.innerHTML = Object.entries(provMap).map(([prov, rows]) => {
+    const anyOk = rows.some(r => r.ok);
+    return `<span class="hc-summary-chip ${anyOk ? 'ok' : 'err'}">${anyOk ? '✓' : '✗'} ${prov}</span>`;
+  }).join('');
+
+  // Results by provider
+  const container = $('hc-results');
+  container.innerHTML = '';
+  Object.entries(provMap).forEach(([prov, rows]) => {
+    const anyOk = rows.some(r => r.ok);
+    const group = document.createElement('div');
+    group.className = 'hc-provider-group settings-section';
+    group.style.padding = '10px 13px';
+
+    group.innerHTML = `
+      <div class="hc-provider-name">
+        <span class="hc-provider-dot ${anyOk ? 'ok' : 'err'}"></span>
+        ${prov}
+        <span style="font-size:10px;font-weight:400;color:var(--muted);margin-left:2px;">${rows.filter(r=>r.ok).length}/${rows.length} ok</span>
+      </div>
+    `;
+
+    rows.forEach(r => {
+      const latStr = r.latency < 0 ? 'timeout' : `${r.latency} ms`;
+      const latClass = r.latency < 0 ? '' : r.latency < 300 ? 'ok-lat' : 'slow';
+      const shortUrl = r.url.length > 52 ? '…' + r.url.slice(-50) : r.url;
+      const row = document.createElement('div');
+      row.className = `hc-endpoint-row ${r.ok ? 'ok-row' : 'err-row'}`;
+      row.title = r.url;
+      row.innerHTML = `
+        <div class="hc-indicator ${r.ok ? 'ok' : 'err'}">${r.ok ? '✓' : '✗'}</div>
+        <span class="hc-method">${r.method}</span>
+        <span class="hc-url">${shortUrl}</span>
+        <span class="hc-detail" title="${r.detail}">${r.detail}</span>
+        <span class="hc-latency ${latClass}">${latStr}</span>
+      `;
+      group.appendChild(row);
+    });
+
+    container.appendChild(group);
+  });
+}
+
+// ── Python bridge ──────────────────────────────────────────────────────────────
+function updateLogFromPython(msg, type) { logMessage(msg, type || ''); }
+
+function setProgress(pct, label) {
+  $('progress-bar').style.width = pct + '%';
+  $('progress-pct').textContent = pct + '%';
+  if (label) $('progress-text').textContent = label;
+}
+
+function updateFolderLabel(path) {
+  $('folder-path').textContent = path;
+  $('folder-path').title = path;
+}
+
+function updateMetadata(data) {
+  try {
+    const d = typeof data === 'string' ? JSON.parse(data) : data;
+    $('meta-card').classList.remove('empty');
+    $('meta-title').textContent  = d.title  || '—';
+    $('meta-artist').textContent = d.artist || '—';
+    const cover = $('cover');
+    if (d.cover) {
+      cover.textContent = '';
+      cover.style.backgroundImage = `url('${d.cover}')`;
+    }
+    $('meta-badge').style.display = 'inline-block';
+    $('meta-badge').textContent = d.quality || 'FLAC';
+  } catch(e) { console.error(e); }
+}
+
+// ── Log ────────────────────────────────────────────────────────────────────────
+function logMessage(msg, type = '') {
+  const area = $('logArea');
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="log-time">${now()}</span><span class="log-msg ${type}">${msg}</span>`;
+  area.appendChild(line);
+  area.scrollTop = area.scrollHeight;
+}
+
+function clearLog() {
+  $('logArea').innerHTML = '';
+}
+
+// ── Recent Fetches ─────────────────────────────────────────────────────────────
+const HISTORY_KEY = 'sf-fetch-history';
+const HISTORY_MAX = 6;
+
+function detectUrlType(url) {
+  if (!url) return 'track';
+  if (/\/album\//i.test(url))    return 'album';
+  if (/\/playlist\//i.test(url)) return 'playlist';
+  if (/\/artist\//i.test(url))   return 'artist';
+  return 'track';
+}
+
+function saveToHistory(url, title, artist, cover, trackCount) {
+  let hist = [];
+  try { hist = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(e) {}
+  hist = hist.filter(h => h.url !== url);
+  hist.unshift({ url, title, artist, cover, trackCount, type: detectUrlType(url), ts: Date.now() });
+  hist = hist.slice(0, HISTORY_MAX);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(hist));
+  renderRecentFetches();
+}
+
+function renderRecentFetches() {
+  let hist = [];
+  try { hist = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch(e) {}
+  const grid = $('recent-grid');
+  const section = $('recent-section');
+  if (!hist.length) { section.classList.add('hidden'); return; }
+  section.classList.remove('hidden');
+  grid.innerHTML = '';
+  hist.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'recent-card';
+    card.onclick = () => {
+      $('urlInput').value = item.url;
+      $('urlInput').focus();
+    };
+    const coverStyle = item.cover
+      ? `background-image:url('${item.cover}');`
+      : '';
+    const typeLabel = item.type.charAt(0).toUpperCase() + item.type.slice(1);
+    const typeEmoji = { album: '💿', playlist: '📋', track: '🎵', artist: '🎤' }[item.type] || '🎵';
+    const subLine = item.artist
+      ? `${item.artist}`
+      : item.trackCount ? `${item.trackCount} tracks` : '';
+    card.innerHTML = `
+      <div class="recent-cover" style="${coverStyle}">${item.cover ? '' : typeEmoji}</div>
+      <div class="recent-info">
+        <div class="recent-title">${item.title || item.url}</div>
+        ${subLine ? `<div class="recent-sub">${subLine}</div>` : ''}
+        <span class="recent-type-badge ${item.type}">${typeEmoji} ${typeLabel}${item.trackCount ? ` · ${item.trackCount}` : ''}</span>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+renderRecentFetches();
+
+// ── Tracklist ──────────────────────────────────────────────────────────────────
+function showTracklist(tracksJson) {
+  const tracks = typeof tracksJson === 'string' ? JSON.parse(tracksJson) : tracksJson;
+  const container = $('track-items');
+  container.innerHTML = '';
+  tracks.forEach((t, i) => {
+    const label = document.createElement('label');
+    label.className = 'track-item';
+    label.innerHTML = `
+      <input type="checkbox" class="track-checkbox" value="${t.index}" checked>
+      <span class="track-num">${i + 1}</span>
+      <span class="track-title">${t.title}</span>
+      <span class="track-artist">${t.artist}</span>
+    `;
+    container.appendChild(label);
+  });
+  const badge = $('track-count-badge');
+  badge.textContent = `${tracks.length} tracks`;
+  badge.style.display = 'inline-block';
+  $('tracklist-panel').style.display = 'block';
+  $('recent-section').classList.add('hidden');
+  $('urlInput').disabled = true;
+  const btn = $('actionBtn');
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download Selected`;
+  btn.style.background = '#3b82f6';
+  btn.disabled = false;
+}
+
+function toggleAllTracks(cb) {
+  document.querySelectorAll('.track-checkbox').forEach(input => input.checked = cb.checked);
+}
+
+function resetUI() {
+  const btn = $('actionBtn');
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Search Tracks`;
+  btn.style.background = 'var(--yellow)';
+  btn.disabled = false;
+  $('urlInput').disabled = false;
+  $('tracklist-panel').style.display = 'none';
+  $('check-all').checked = true;
+  $('track-count-badge').style.display = 'none';
+  setProgress(0, 'Waiting…');
+  renderRecentFetches();
+}
+
+// ── Config builder ─────────────────────────────────────────────────────────────
+function buildConfig() {
+  const services    = getOrderedChecked('services-list');
+  const lyricsProvs = getOrderedChecked('lyrics-list');
+  const enrichProvs = getOrderedChecked('enrich-list');
+  const loopVal  = parseInt($('config-loop').value)    || 0;
+  const retries  = parseInt($('config-retries').value) || 0;
+  const qToken   = $('config-qobuz-token').value.trim() || null;
+  const postCmd  = $('config-post-cmd')?.value?.trim() || '';
+  const postAction = $('config-post-action').value;
+  return {
+    quality:                 $('config-quality').value,
+    allow_fallback:          $('config-fallback').checked,
+    services:                services.length > 0 ? services : ['tidal'],
+    lyrics:                  $('config-lyrics').checked,
+    lyrics_providers:        lyricsProvs,
+    enrich_metadata:         $('config-enrich').checked,
+    enrich_providers:        enrichProvs,
+    filename_format:         $('config-filename').value.trim() || '{title} - {artist}',
+    use_track_numbers:       $('config-track-numbers').checked,
+    use_album_track_numbers: $('config-album-track-numbers').checked,
+    use_artist_subfolders:   $('config-artist-subfolders').checked,
+    use_album_subfolders:    $('config-album-subfolders').checked,
+    first_artist_only:       $('config-first-artist').checked,
+    include_featuring:       $('config-featuring').checked,
+    track_max_retries:       retries,
+    post_download_action:    postAction,
+    post_download_command:   postAction === 'command' ? postCmd : '',
+    qobuz_token:             qToken,
+    loop:                    loopVal > 0 ? loopVal : null,
+    log_level:               $('config-loglevel').value,
+  };
+}
+
+// ── Main action ────────────────────────────────────────────────────────────────
+let _lastFetchMeta = null;
+
+async function handleAction() {
+  const btn = $('actionBtn');
+
+  if (btn.textContent.includes('Search')) {
+    const url = $('urlInput').value.trim();
+    if (!url) return logMessage('Please enter a valid URL.', 'error');
+    const includeFeaturing = $('config-featuring').checked;
+    btn.disabled = true;
+    setProgress(5, 'Searching…');
+    $('tracklist-panel').style.display = 'none';
+    $('recent-section').classList.add('hidden');
+    if (window.pywebview?.api) {
+      await window.pywebview.api.fetch_metadata(url, includeFeaturing);
+    } else {
+      logMessage('Demo: Python not connected.', 'info');
+      setTimeout(() => {
+        updateMetadata({ title: 'Demo Album', artist: 'Demo Artist', cover: '', quality: 'FLAC — 3 tracks' });
+        showTracklist(JSON.stringify([
+          {index:0, title:'Demo Track 1', artist:'Demo Artist'},
+          {index:1, title:'Demo Track 2', artist:'Demo Artist'},
+          {index:2, title:'Demo Track 3', artist:'Demo Artist'},
+        ]));
+      }, 800);
+    }
+  } else {
+    const checkboxes = document.querySelectorAll('.track-checkbox:checked');
+    const selectedIndices = Array.from(checkboxes).map(cb => parseInt(cb.value));
+    if (selectedIndices.length === 0)
+      return logMessage('Please select at least one track!', 'error');
+    const config = buildConfig();
+    btn.disabled = true;
+    $('tracklist-panel').style.display = 'none';
+    if (window.pywebview?.api) {
+      await window.pywebview.api.download_tracks(selectedIndices, config);
+    } else {
+      setTimeout(() => { logMessage('Simulated download complete.', 'ok'); resetUI(); }, 1500);
+    }
+  }
+}
+
+// Override updateMetadata to also save history
+const _origUpdateMetadata = updateMetadata;
+window.updateMetadata = function(data) {
+  _origUpdateMetadata(data);
+  try {
+    const d = typeof data === 'string' ? JSON.parse(data) : data;
+    const url = $('urlInput').value.trim();
+    if (url && d.title && d.title !== '—') {
+      const tc = (d.quality || '').match(/(\d+) tracks/);
+      saveToHistory(url, d.title, d.artist || '', d.cover || '', tc ? parseInt(tc[1]) : null);
+    }
+  } catch(e) {}
+};
+</script>
+</body>
+</html>
