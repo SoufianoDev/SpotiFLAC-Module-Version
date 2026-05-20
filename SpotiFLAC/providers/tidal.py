@@ -612,13 +612,12 @@ def _fetch_tidal_url_parallel(
 # ---------------------------------------------------------------------------
 
 class TidalProvider(BaseProvider):
-    name = "tidal"
-
     def __init__(
             self,
-            apis:          list[str] | None = None,
-            timeout_s:     int              = 15,
-            qobuz_token:   str | None       = None,   # FIX #6: aggiunto parametro mancante
+            apis:            list[str] | None = None,
+            timeout_s:       int              = 15,
+            qobuz_token:     str | None       = None,
+            custom_api_url:  str | None       = None,   # ← nuovo parametro
     ) -> None:
         super().__init__(timeout_s=timeout_s, retry=RetryConfig(max_attempts=2))
         self._session = self._http._session
@@ -626,13 +625,18 @@ class TidalProvider(BaseProvider):
 
         try:
             prime_tidal_api_list()
-            self._apis = apis or get_tidal_api_list()
+            base_apis = apis or get_tidal_api_list()
         except Exception as exc:
             logger.warning("[tidal] API list unavailable, using built-in fallback: %s", exc)
-            self._apis = list(apis or _TIDAL_APIS_GET)
+            base_apis = list(apis or _TIDAL_APIS_GET)
 
-        # FIX #6: _qobuz_token non era mai settabile — ora accetta il parametro
-        # e fallback a variabile d'ambiente, come QobuzProvider.
+        # La custom instance va sempre in cima alla lista — ha priorità assoluta
+        if custom_api_url:
+            clean = custom_api_url.strip().rstrip("/")
+            base_apis = [clean] + [a for a in base_apis if a.rstrip("/") != clean]
+            logger.info("[tidal] Custom API instance registered: %s", clean)
+
+        self._apis = base_apis
         self._qobuz_token: str | None = qobuz_token or os.environ.get("QOBUZ_AUTH_TOKEN")
 
     # ------------------------------------------------------------------
@@ -775,7 +779,12 @@ class TidalProvider(BaseProvider):
         except Exception:
             rotated = self._apis
 
+        # Assicura che la custom API (testa di self._apis) sia sempre prima
         ordered = prioritize_providers("tidal", rotated)
+        if self._apis and self._apis[0] not in ordered:
+            ordered = [self._apis[0]] + ordered
+        elif self._apis and ordered and self._apis[0] != ordered[0]:
+            ordered = [self._apis[0]] + [a for a in ordered if a != self._apis[0]]
 
         winner_api, dl_url = _fetch_tidal_url_parallel(ordered, track_id, quality, _API_TIMEOUT_S)
         record_success("tidal", winner_api)
