@@ -26,7 +26,7 @@ class UILogHandler(logging.Handler):
 
 class SpotiFLAC_API:
     def __init__(self):
-        self.window         = None
+        self._window        = None  # Changed to private to prevent PyWebView inspection recursion
         self._stop_anim     = threading.Event()
         self._anim_thread   = None
         self.download_dir   = DEFAULT_DOWNLOAD_DIR
@@ -34,31 +34,22 @@ class SpotiFLAC_API:
         self.current_url    = ""
 
     def set_window(self, window):
-        self.window = window
-        self.window.events.loaded += self._on_loaded
 
     def _on_loaded(self):
         self.log("Python Backend connected.", "info")
         self.log(f"Default download folder: {self.download_dir}", "info")
-        self.window.evaluate_js(f'updateFolderLabel({json.dumps(self.download_dir)})')
 
     # ── UI communication ──────────────────────────────────────────────────────
 
     def log(self, message, type=""):
-        if self.window:
             safe = json.dumps(str(message))
-            self.window.evaluate_js(f'updateLogFromPython({safe}, "{type}")')
 
     def set_progress(self, pct, label=""):
-        if self.window:
             safe_label = json.dumps(label)
-            self.window.evaluate_js(f'setProgress({pct}, {safe_label})')
 
     def set_metadata(self, title, artist, cover="", quality="FLAC"):
-        if self.window:
             data = json.dumps({"title": title, "artist": artist,
                                "cover": cover, "quality": quality})
-            self.window.evaluate_js(f'updateMetadata({data})')
 
     # ── Window and folder controls ────────────────────────────────────────────
 
@@ -76,22 +67,13 @@ class SpotiFLAC_API:
 
     def choose_folder(self):
         """Opens the folder dialog to choose the download directory."""
-        if self.window:
-            result = self.window.create_file_dialog(webview.FileDialog.FOLDER, allow_multiple=False)
             if result and len(result) > 0:
                 self.download_dir = result[0]
                 self.log(f"Download folder changed: {self.download_dir}", "ok")
-                self.window.evaluate_js(f'updateFolderLabel({json.dumps(self.download_dir)})')
 
     # ── Phase 1: Metadata and track lookup ───────────────────────────────────
 
     def fetch_metadata(self, url, include_featuring=False):
-        """Starts metadata fetching in the background.
-
-        Args:
-            url: URL of the track / album / playlist / artist.
-            include_featuring: if True, includes featuring tracks in artist discographies.
-        """
         self.current_url = url
         threading.Thread(
             target=self._fetch_metadata_task,
@@ -118,7 +100,6 @@ class SpotiFLAC_API:
 
             if not tracks:
                 self.log("No tracks found at this URL.", "error")
-                self.window.evaluate_js('resetUI()')
                 return
 
             self.current_tracks = tracks
@@ -134,14 +115,12 @@ class SpotiFLAC_API:
             badge = f"FLAC — {len(tracks)} tracks" if len(tracks) > 1 else "FLAC"
             self.set_metadata(tracks[0].title, tracks[0].artists, tracks[0].cover_url or "", badge)
 
-            self.window.evaluate_js(f'showTracklist({json.dumps(track_data)})')
             self.log(f"Found: {collection_name} ({len(tracks)} track(s)). Choose the songs to download.", "ok")
             self.set_progress(100, "Pronto per il download.")
 
         except Exception as e:
             self.log(f"Error fetching metadata: {str(e)}", "error")
             self.set_progress(0, "Error.")
-            self.window.evaluate_js('resetUI()')
 
     # ── Phase 2: Actual download ──────────────────────────────────────────────
 
@@ -261,16 +240,10 @@ class SpotiFLAC_API:
             self.set_progress(0, "Error.")
         finally:
             sf_logger.removeHandler(handler)
-            self.window.evaluate_js('resetUI()')
 
     # ── Health Check ─────────────────────────────────────────────────────────
 
     def run_health_check(self, services):
-        """Starts a provider health check in the background.
-
-        Args:
-            services: list of provider ids to test, e.g. ['tidal', 'qobuz', 'deezer']
-        """
         threading.Thread(
             target=self._health_check_task,
             args=(services,),
@@ -295,7 +268,6 @@ class SpotiFLAC_API:
                 }
                 for r in results
             ]
-            self.window.evaluate_js(f'updateHealthResults({json.dumps(data)})')
             ok_providers = [r.provider for r in results if r.ok]
             self.log(
                 f"Health check complete — {len([r for r in results if r.ok])}/{len(results)} endpoints OK.",
@@ -303,10 +275,8 @@ class SpotiFLAC_API:
             )
         except ImportError:
             self.log("health_check module not found. Make sure SpotiFLAC is installed.", "error")
-            self.window.evaluate_js('$("hc-run-btn").disabled=false;$("hc-spinner").style.display="none";')
         except Exception as e:
             self.log(f"Health check error: {str(e)}", "error")
-            self.window.evaluate_js('$("hc-run-btn").disabled=false;$("hc-spinner").style.display="none";')
 
     # ── Progress bar animation ────────────────────────────────────────────────
 

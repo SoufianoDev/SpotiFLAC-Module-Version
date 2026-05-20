@@ -964,6 +964,21 @@
             </div>
           </div>
         </div>
+          <div class="settings-section">
+            <div class="section-title">Profiles</div>
+            <div class="panel-row">
+              <span class="row-label">Save Profile</span>
+              <input type="text" id="profile-name" placeholder="Name" style="width:100px;">
+              <button onclick="saveProfile()" style="padding:4px 8px;">Save</button>
+            </div>
+            <div class="panel-row">
+              <span class="row-label">Load Profile</span>
+              <select id="profile-select" style="flex:1;">
+                <option value="">Select a profile...</option>
+              </select>
+              <button onclick="loadProfile()" style="padding:4px 8px;">Load</button>
+            </div>
+          </div>
 
         <!-- TAB: HEALTH CHECK ─────────────────────────────────────────────── -->
         <div class="tab-content" id="tab-health">
